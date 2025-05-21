@@ -13,7 +13,7 @@ async def cors(request: Request, origins, method="GET") -> Response:
     if origins != "*" and current_domain not in allow_origin_list:
         return Response("Forbidden origin", status_code=403)
 
-    url = request.query_params.get('url')
+    url = request.query_params.get('url') or request.url.query.split("url=")[-1]
     if not url:
         return Response("Missing 'url' param", status_code=400)
 
