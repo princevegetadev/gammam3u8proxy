@@ -4,6 +4,7 @@ from fastapi import Request, Response, Cookie
 from fastapi.responses import RedirectResponse
 from request_helper import Requester
 from typing import Annotated
+from urllib.parse import unquote, urlparse
 
 
 async def cors(request: Request, origins, method="GET") -> Response:
@@ -13,7 +14,19 @@ async def cors(request: Request, origins, method="GET") -> Response:
     if origins != "*" and current_domain not in allow_origin_list:
         return Response("Forbidden origin", status_code=403)
 
-    url = request.query_params.get('url') or request.url.query.split("url=")[-1]
+    raw_url = request.query_params.get('url')
+    if not raw_url:
+        return Response("Missing 'url' param", status_code=400)
+    
+    # Prevent nested proxy calls
+    decoded_url = unquote(raw_url)
+    if "gammam3u8proxy-fxsb.vercel.app" in decoded_url:
+        # Extract the *real* target URL from the nested proxy call
+        inner_url = urlparse(decoded_url).query
+        if inner_url.startswith("url="):
+            raw_url = unquote(inner_url.split("url=", 1)[-1])
+    
+    url = raw_url
     if not url:
         return Response("Missing 'url' param", status_code=400)
 
