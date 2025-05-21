@@ -27,7 +27,10 @@ if enable_docs:
         return RedirectResponse('/docs')
 
 
-allowed_origins = os.getenv("origins", "*")
+allowed_origins = [
+    "https://vibetv-app.vercel.app",
+    "https://animeverse-ruby.vercel.app"
+]
 # You may set your environment variable with the domains you want to allow requests from(your site)
 # You may put ',' between the domains if you have multiple domains
 
