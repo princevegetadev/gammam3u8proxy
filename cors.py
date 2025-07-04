@@ -11,21 +11,32 @@ async def cors(request: Request, origins, method="GET") -> Response:
     current_domain = request.headers.get("origin") or origins
     allow_origin_list = origins.replace(", ", ",").split(",") if origins != "*" else ["*"]
 
+    # Preflight support for OPTIONS
+    if request.method == "OPTIONS":
+        return Response(
+            status_code=204,
+            headers={
+                "Access-Control-Allow-Origin": current_domain,
+                "Access-Control-Allow-Credentials": "true",
+                "Access-Control-Allow-Methods": "GET,POST,HEAD,OPTIONS",
+                "Access-Control-Allow-Headers": "Content-Type,Authorization",
+            },
+        )
+
     if origins != "*" and current_domain not in allow_origin_list:
         return Response("Forbidden origin", status_code=403)
 
     raw_url = request.query_params.get('url')
     if not raw_url:
         return Response("Missing 'url' param", status_code=400)
-    
+
     # Prevent nested proxy calls
     decoded_url = unquote(raw_url)
     if "gammam3u8proxy-fxsb.vercel.app" in decoded_url:
-        # Extract the *real* target URL from the nested proxy call
         inner_url = urlparse(decoded_url).query
         if inner_url.startswith("url="):
             raw_url = unquote(inner_url.split("url=", 1)[-1])
-    
+
     url = raw_url
     if not url:
         return Response("Missing 'url' param", status_code=400)
@@ -82,6 +93,10 @@ async def cors(request: Request, origins, method="GET") -> Response:
                 headers["location"] = requested.host + headers["location"]
             headers["location"] = main_url + headers["location"]
 
+        # HEAD request → return empty body
+        if request.method == "HEAD":
+            content = b''
+
         resp = Response(content, code, headers=headers)
         resp.set_cookie("_last_requested", requested.host, max_age=3600, httponly=True)
         return resp
@@ -97,29 +112,24 @@ async def cors(request: Request, origins, method="GET") -> Response:
             }
         )
 
+
 def add_cors(app, origins, setup_with_no_url_param=False):
     cors_path = os.getenv('cors_url', '/cors')
 
-    @app.get(cors_path)
+    @app.api_route(cors_path, methods=["GET", "POST", "HEAD", "OPTIONS"])
     async def cors_caller(request: Request) -> Response:
-        return await cors(request, origins=origins)
-
-    @app.post(cors_path)
-    async def cors_caller_post(request: Request) -> Response:
-        return await cors(request, origins=origins, method="POST")
+        return await cors(request, origins=origins, method=request.method)
 
     if setup_with_no_url_param:
-        @app.get("/{mistaken_relative:path}")
-        async def cors_caller_for_relative(request: Request, mistaken_relative: str, _last_requested: Annotated[str, Cookie(...)]) -> RedirectResponse:
+        @app.api_route("/{mistaken_relative:path}", methods=["GET", "POST"])
+        async def cors_caller_for_relative(
+            request: Request,
+            mistaken_relative: str,
+            _last_requested: Annotated[str, Cookie(...)]
+        ) -> RedirectResponse:
             x = Requester(str(request.url))
             x = x.query_string(x.query_params)
-            resp = RedirectResponse(f"/cors?url={_last_requested}/{mistaken_relative}{'&' + x if x else ''}")
-            return resp
-
-        @app.post("/{mistaken_relative:path}")
-        async def cors_caller_for_relative(request: Request, mistaken_relative: str,
-                                           _last_requested: Annotated[str, Cookie(...)]) -> RedirectResponse:
-            x = Requester(str(request.url))
-            x = x.query_string(x.query_params)
-            resp = RedirectResponse(f"/cors?url={_last_requested}/{mistaken_relative}{'&' + x if x else ''}")
-            return resp
+            redirect_url = f"/cors?url={_last_requested}/{mistaken_relative}"
+            if x:
+                redirect_url += f"&{x}"
+            return RedirectResponse(redirect_url)
