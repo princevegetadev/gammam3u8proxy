@@ -4,7 +4,7 @@ from fastapi import Request, Response, Cookie
 from fastapi.responses import RedirectResponse
 from request_helper import Requester
 from typing import Annotated
-from urllib.parse import unquote, urlparse
+from urllib.parse import unquote, urlparse, quote
 
 
 async def cors(request: Request, origins, method="GET") -> Response:
