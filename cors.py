@@ -11,7 +11,6 @@ async def cors(request: Request, origins, method="GET") -> Response:
     current_domain = request.headers.get("origin") or origins
     allow_origin_list = origins.replace(", ", ",").split(",") if origins != "*" else ["*"]
 
-    # Preflight support for OPTIONS
     if request.method == "OPTIONS":
         return Response(
             status_code=204,
@@ -19,7 +18,7 @@ async def cors(request: Request, origins, method="GET") -> Response:
                 "Access-Control-Allow-Origin": current_domain,
                 "Access-Control-Allow-Credentials": "true",
                 "Access-Control-Allow-Methods": "GET,POST,HEAD,OPTIONS",
-                "Access-Control-Allow-Headers": "Content-Type,Authorization",
+                "Access-Control-Allow-Headers": "Content-Type,Authorization,Referer",
             },
         )
 
@@ -30,18 +29,19 @@ async def cors(request: Request, origins, method="GET") -> Response:
     if not raw_url:
         return Response("Missing 'url' param", status_code=400)
 
-    # Prevent nested proxy calls
     decoded_url = unquote(raw_url)
     if "gammam3u8proxy-fxsb.vercel.app" in decoded_url:
         inner_url = urlparse(decoded_url).query
         if inner_url.startswith("url="):
-            raw_url = unquote(inner_url.split("url=", 1)[-1])
+            raw_url = unquote(inner_url.split("url=", 1)[-1].split("&")[0])
 
     url = raw_url
     if not url:
         return Response("Missing 'url' param", status_code=400)
 
     file_type = request.query_params.get('type')
+    referer = request.query_params.get('referer')
+
     try:
         requested = Requester(str(request.url))
         main_url = requested.host + requested.path + "?url="
@@ -52,6 +52,11 @@ async def cors(request: Request, origins, method="GET") -> Response:
         hdrs["Accept-Encoding"] = ""
 
         hdrs.update(json.loads(request.query_params.get("headers", "{}").replace("'", '"')))
+        
+        # If a referer is passed in query params, use it. This overwrites any client-sent Referer.
+        if referer:
+            hdrs['Referer'] = referer
+
         content, headers, code, cookies = requested.get(
             data=None,
             headers=hdrs,
@@ -64,9 +69,10 @@ async def cors(request: Request, origins, method="GET") -> Response:
         headers['Access-Control-Allow-Origin'] = current_domain
         headers['Access-Control-Allow-Credentials'] = 'true'
 
-        # Strip problematic headers
         for key in ['Vary', 'Content-Encoding', 'Transfer-Encoding', 'Content-Length']:
             headers.pop(key, None)
+
+        referer_param = f"&referer={quote(referer)}" if referer else ""
 
         if (file_type == "m3u8" or ".m3u8" in url) and code != 404:
             content = content.decode("utf-8")
@@ -75,25 +81,23 @@ async def cors(request: Request, origins, method="GET") -> Response:
                 if line.startswith("#"):
                     new_content += line
                 elif line.startswith("/"):
-                    new_content += main_url + requested.safe_sub(requested.host + line)
+                    new_content += main_url + requested.safe_sub(requested.host + line) + referer_param
                 elif line.startswith("http"):
-                    new_content += main_url + requested.safe_sub(line)
+                    new_content += main_url + requested.safe_sub(line) + referer_param
                 elif line.strip():
                     new_content += main_url + requested.safe_sub(
                         requested.host + '/' +
                         '/'.join(str(requested.path).split("?")[0].split("/")[:-1]) +
-                        '/' + requested.safe_sub(line)
-                    )
+                        '/' + line # Do not re-quote the line itself
+                    ) + referer_param
                 new_content += "\n"
             content = new_content
 
-        # Rewrite relative location redirects
         if "location" in headers:
             if headers["location"].startswith("/"):
                 headers["location"] = requested.host + headers["location"]
-            headers["location"] = main_url + headers["location"]
+            headers["location"] = main_url + quote(headers["location"]) + referer_param
 
-        # HEAD request → return empty body
         if request.method == "HEAD":
             content = b''
 
@@ -111,7 +115,6 @@ async def cors(request: Request, origins, method="GET") -> Response:
                 "Content-Type": "text/plain"
             }
         )
-
 
 def add_cors(app, origins, setup_with_no_url_param=False):
     cors_path = os.getenv('cors_url', '/cors')
