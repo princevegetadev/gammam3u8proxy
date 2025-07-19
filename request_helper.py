@@ -19,24 +19,25 @@ class Requester:
         params.pop("method", None)
         params.pop("json", None)
         params.pop("params", None)
+        params.pop("referer", None) # Also remove referer from remaining params
         self.remaining_params = params
         self.req_url = self.host + self.path+"?" + self.query_string(params)
         self.base_headers = {
-            'user-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko)'
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko)'
                           ' Chrome/114.0.0.0 Safari/537.36',
-            'accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,'
+            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,'
                       'image/webp,image/apng,*/*;q=0.8',
-            'connection': 'keep-alive',
-            'referer': None,
-            "sec-ch-ua-mobile": "?0",
-            "sec-ch-ua-platform": "Linux",
+            'Connection': 'keep-alive',
+            'Referer': None, # Standardized to 'Referer'
+            "Sec-Ch-Ua-Mobile": "?0",
+            "Sec-Ch-Ua-Platform": "Linux",
         }
-
+        
     def full(self, path_qs):
         return self.host + path_qs
 
     def get(self, data=None, headers=None, method='get', json_data=None, additional_params=None, cookies=None):
-        headers = self.headers(headers)
+        final_headers = self.headers(headers) # Correctly use the processed headers
         try:
             additional_params = json.loads(additional_params)
         except (json.JSONDecodeError, TypeError):
@@ -48,15 +49,15 @@ class Requester:
             self.req_url += "&" if "=" in self.req_url else ""
             self.req_url += self.query_string(additional_params)
         self.req_url = self.req_url.replace("%3F", "&").replace("%3f", "&").replace("%3D", "=").replace("%3d", "=").replace("%20", " ")
-        print(f"getting {self.req_url} with")
+        print(f"getting {self.req_url} with headers: {final_headers}")
         if method == "post":
-            data = requests.post(self.req_url, headers=headers, data=data, timeout=35,
+            data = requests.post(self.req_url, headers=final_headers, data=data, timeout=35,
                                  json=json_data, allow_redirects=False, cookies=cookies)
         else:
-            data = requests.get(self.req_url, headers=headers, data=data, timeout=35,
+            data = requests.get(self.req_url, headers=final_headers, data=data, timeout=35,
                                 json=json_data, allow_redirects=False, cookies=cookies)
         return [data.content, data.headers, data.status_code, data.cookies]
-
+        
     def headers(self, headers):
         header = self.base_headers.copy()
         header.update(headers if headers is not None else header)
