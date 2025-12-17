@@ -8,7 +8,6 @@ try:
     enable_docs = bool(os.getenv("documentation", False))
     docs_url = os.getenv('docs_url', '/docs') if enable_docs and os.getenv('docs_url', '/docs') else None
     redoc_url = os.getenv('redoc_url', '/redoc') if enable_docs and os.getenv('redoc_url', '/redoc') else None
-    # set environment variable 'documentation' to 'True' if you want to enable the /docs path
 except TypeError:
     enable_docs = False
     docs_url = '/docs' if enable_docs else None
@@ -28,15 +27,11 @@ if enable_docs:
 
 
 allowed_origins = os.getenv("origins", "*")
-# You may set your environment variable with the domains you want to allow requests from(your site)
-# You may put ',' between the domains if you have multiple domains
 
 try:
     port = int(float(os.getenv("port", default_port)))
 except TypeError:
     port = int(default_port)
-# You don't need to change anything here unless you want to run it on a different or specific port
-# to run on a different port you can set the port env variable
 
 add_cors(app, allowed_origins, allow_no_url_param_also)
 
