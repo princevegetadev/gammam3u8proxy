@@ -53,7 +53,6 @@ async def cors(request: Request, origins, method="GET") -> Response:
 
         hdrs.update(json.loads(request.query_params.get("headers", "{}").replace("'", '"')))
         
-        # If a referer is passed in query params, use it. This overwrites any client-sent Referer.
         if referer:
             hdrs['Referer'] = referer
 
@@ -88,7 +87,7 @@ async def cors(request: Request, origins, method="GET") -> Response:
                     new_content += main_url + requested.safe_sub(
                         requested.host + '/' +
                         '/'.join(str(requested.path).split("?")[0].split("/")[:-1]) +
-                        '/' + line # Do not re-quote the line itself
+                        '/' + line
                     ) + referer_param
                 new_content += "\n"
             content = new_content
@@ -136,3 +135,4 @@ def add_cors(app, origins, setup_with_no_url_param=False):
             if x:
                 redirect_url += f"&{x}"
             return RedirectResponse(redirect_url)
+
