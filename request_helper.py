@@ -19,7 +19,7 @@ class Requester:
         params.pop("method", None)
         params.pop("json", None)
         params.pop("params", None)
-        params.pop("referer", None) # Also remove referer from remaining params
+        params.pop("referer", None)
         self.remaining_params = params
         self.req_url = self.host + self.path+"?" + self.query_string(params)
         self.base_headers = {
@@ -28,7 +28,7 @@ class Requester:
             'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,'
                       'image/webp,image/apng,*/*;q=0.8',
             'Connection': 'keep-alive',
-            'Referer': None, # Standardized to 'Referer'
+            'Referer': None,
             "Sec-Ch-Ua-Mobile": "?0",
             "Sec-Ch-Ua-Platform": "Linux",
         }
@@ -37,7 +37,7 @@ class Requester:
         return self.host + path_qs
 
     def get(self, data=None, headers=None, method='get', json_data=None, additional_params=None, cookies=None):
-        final_headers = self.headers(headers) # Correctly use the processed headers
+        final_headers = self.headers(headers)
         try:
             additional_params = json.loads(additional_params)
         except (json.JSONDecodeError, TypeError):
@@ -94,12 +94,6 @@ class Requester:
 
     @staticmethod
     def m3u8(content):
-        """
-        it has been implemented in th cors.py file
-        may be moved here in the future (not sure)
-        :param content:
-        :return:
-        """
         pass
 
     def __str__(self):
@@ -115,3 +109,4 @@ if __name__ == "__main__":
     _url = "https://example.com/test.mp4?token=3892&idea=2(]/s[e3r2&url=https%3A//example.com/test.mp4%3Ftoken%3D3892%26idea%3D2%28%5D/s%5Be3r2"
     er = Requester(_url)
     print(er)
+
